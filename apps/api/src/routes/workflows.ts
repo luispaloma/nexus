@@ -10,6 +10,7 @@ import {
   budgetRequestApprovalTemplate,
   monthEndCloseTemplate,
   arFollowupTemplate,
+  outboundSdrTemplate,
   WORKFLOW_TEMPLATES,
 } from "@nexus/ai";
 import { requireAuth, requireRole, requireActiveSubscription } from "../middleware/auth";
@@ -154,6 +155,7 @@ workflowsRouter.get("/templates/:key", (req: Request, res: Response) => {
     "budget-request-approval": budgetRequestApprovalTemplate,
     "month-end-close": monthEndCloseTemplate,
     "ar-followup": arFollowupTemplate,
+    "outbound-sdr": outboundSdrTemplate,
   };
 
   const template = templateMap[key];

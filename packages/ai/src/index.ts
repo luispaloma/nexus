@@ -38,6 +38,7 @@ export { vendorPaymentApprovalTemplate } from "./templates/vendor-payment-approv
 export { budgetRequestApprovalTemplate } from "./templates/budget-request-approval";
 export { monthEndCloseTemplate } from "./templates/month-end-close";
 export { arFollowupTemplate } from "./templates/ar-followup";
+export { outboundSdrTemplate } from "./templates/outbound-sdr";
 
 // Template registry
 export const WORKFLOW_TEMPLATES = {
@@ -80,6 +81,11 @@ export const WORKFLOW_TEMPLATES = {
     name: "Accounts Receivable Follow-Up",
     description: "AI-drafted collection emails with urgency-based tone, escalation routing, and legal referral",
     category: "finance",
+  },
+  "outbound-sdr": {
+    name: "Outbound AI SDR Agent",
+    description: "AI ICP scoring, personalised cold email drafting, CRM logging, and SDR qualification review",
+    category: "sales",
   },
 } as const;
 
