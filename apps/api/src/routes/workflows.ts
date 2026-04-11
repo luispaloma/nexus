@@ -5,6 +5,11 @@ import {
   invoiceApprovalTemplate,
   contractReviewTemplate,
   leadQualificationTemplate,
+  expenseReportApprovalTemplate,
+  vendorPaymentApprovalTemplate,
+  budgetRequestApprovalTemplate,
+  monthEndCloseTemplate,
+  arFollowupTemplate,
   WORKFLOW_TEMPLATES,
 } from "@nexus/ai";
 import { requireAuth, requireRole, requireActiveSubscription } from "../middleware/auth";
@@ -144,6 +149,11 @@ workflowsRouter.get("/templates/:key", (req: Request, res: Response) => {
     "invoice-approval": invoiceApprovalTemplate,
     "contract-review": contractReviewTemplate,
     "lead-qualification": leadQualificationTemplate,
+    "expense-report-approval": expenseReportApprovalTemplate,
+    "vendor-payment-approval": vendorPaymentApprovalTemplate,
+    "budget-request-approval": budgetRequestApprovalTemplate,
+    "month-end-close": monthEndCloseTemplate,
+    "ar-followup": arFollowupTemplate,
   };
 
   const template = templateMap[key];

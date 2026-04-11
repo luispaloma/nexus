@@ -9,6 +9,9 @@ import { clerkMiddleware } from "@clerk/express";
 import { workflowsRouter } from "./routes/workflows";
 import { executionsRouter } from "./routes/executions";
 import { billingRouter } from "./routes/billing";
+import { analyticsRouter } from "./routes/analytics";
+import { integrationsRouter } from "./routes/integrations";
+import { shareRouter } from "./routes/share";
 
 // ----------------------------------------------------------------------------
 // App initialization
@@ -98,6 +101,9 @@ app.get("/health", (_req, res) => {
 app.use("/api/workflows", workflowsRouter);
 app.use("/api/executions", executionsRouter);
 app.use("/api/billing", billingRouter);
+app.use("/api/analytics", analyticsRouter);
+app.use("/api/integrations", integrationsRouter);
+app.use("/api", shareRouter); // share routes: /api/workflows/:id/share and /api/share/:token
 
 // ----------------------------------------------------------------------------
 // 404 handler

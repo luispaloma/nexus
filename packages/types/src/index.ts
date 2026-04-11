@@ -89,7 +89,9 @@ export interface ClaudeTaskConfig {
 export type ToolCallConfig =
   | SlackToolConfig
   | EmailToolConfig
-  | HttpToolConfig;
+  | HttpToolConfig
+  | GoogleWorkspaceToolConfig
+  | CrmToolConfig;
 
 export interface SlackToolConfig {
   tool: "slack";
@@ -118,6 +120,50 @@ export interface HttpToolConfig {
   bodyTemplate?: string;
   outputKey: string;
   expectedStatusCodes?: number[];
+}
+
+export type GoogleWorkspaceAction =
+  | "sheets.append"
+  | "sheets.read"
+  | "docs.create"
+  | "docs.append"
+  | "drive.upload"
+  | "drive.list";
+
+export interface GoogleWorkspaceToolConfig {
+  tool: "google_workspace";
+  action: GoogleWorkspaceAction;
+  spreadsheetId?: string;
+  documentId?: string;
+  folderId?: string;
+  /** Sheet range, e.g. "Sheet1!A:E" */
+  range?: string;
+  /** Template for cell values (JSON array of arrays) */
+  valuesTemplate?: string;
+  /** Template for doc content */
+  contentTemplate?: string;
+  titleTemplate?: string;
+  mimeType?: string;
+  outputKey: string;
+}
+
+export type CrmAction =
+  | "create_contact"
+  | "update_contact"
+  | "create_deal"
+  | "update_deal"
+  | "create_note"
+  | "search_contacts";
+
+export interface CrmToolConfig {
+  tool: "crm";
+  provider: "hubspot" | "salesforce";
+  action: CrmAction;
+  /** Handlebars template for the CRM record payload (JSON) */
+  payloadTemplate: string;
+  /** Optional: contact/deal ID template for update actions */
+  recordIdTemplate?: string;
+  outputKey: string;
 }
 
 export interface HumanApprovalConfig {
