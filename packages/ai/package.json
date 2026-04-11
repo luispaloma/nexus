@@ -1,0 +1,39 @@
+{
+  "name": "@nexus/ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Claude AI agent primitives and workflow executor for Nexus platform",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "lint": "eslint src/ --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.36.3",
+    "@nexus/db": "*",
+    "@nexus/types": "*",
+    "@slack/web-api": "^7.0.2",
+    "handlebars": "^4.7.8",
+    "resend": "^3.2.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/handlebars": "^4.1.0",
+    "@types/node": "^20.11.5",
+    "eslint": "^8.56.0",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3"
+  }
+}

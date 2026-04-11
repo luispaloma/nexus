@@ -1,0 +1,41 @@
+{
+  "name": "@nexus/db",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Database client and Prisma schema for Nexus platform",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:seed": "ts-node prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset",
+    "lint": "eslint src/ --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "eslint": "^8.56.0",
+    "prisma": "^5.8.1",
+    "ts-node": "^10.9.2",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3"
+  }
+}

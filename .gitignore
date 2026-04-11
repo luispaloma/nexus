@@ -1,0 +1,93 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Turbo
+.turbo/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.production
+.env.staging
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.DS_Store
+Thumbs.db
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V5
+.Trashes
+ehthumbs.db
+
+# Prisma
+packages/db/node_modules/.prisma/
+
+# Docker volumes
+postgres-data/
+redis-data/
+
+# Testing
+cypress/videos/
+cypress/screenshots/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Package lock files (keep only one)
+yarn.lock
+pnpm-lock.yaml
+
+# Certificates
+*.pem
+*.key
+*.crt
+
+# Uploads
+uploads/
+public/uploads/
