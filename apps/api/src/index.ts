@@ -12,6 +12,7 @@ import { billingRouter } from "./routes/billing";
 import { analyticsRouter } from "./routes/analytics";
 import { integrationsRouter } from "./routes/integrations";
 import { shareRouter } from "./routes/share";
+import { onboardingRouter } from "./routes/onboarding";
 
 // ----------------------------------------------------------------------------
 // App initialization
@@ -104,6 +105,7 @@ app.use("/api/billing", billingRouter);
 app.use("/api/analytics", analyticsRouter);
 app.use("/api/integrations", integrationsRouter);
 app.use("/api", shareRouter); // share routes: /api/workflows/:id/share and /api/share/:token
+app.use("/api/onboarding", onboardingRouter);
 
 // ----------------------------------------------------------------------------
 // 404 handler

@@ -800,6 +800,40 @@ export class WorkflowExecutor {
       details: { assignedTo, title: config.title, stepId: step.id },
     });
 
+    // Send email notification to the approver so they know action is needed
+    if (this.email) {
+      const appUrl = process.env.NEXTJS_URL ?? "http://localhost:3000";
+      const approvalInboxUrl = `${appUrl}/approvals`;
+      const emailBody = `Hi,
+
+A workflow is waiting for your approval.
+
+**${config.title}**
+
+${description.slice(0, 500)}${description.length > 500 ? "\n\n[...truncated — view full details in Nexus]" : ""}
+
+Please review and approve or reject this request in your Nexus approval inbox:
+${approvalInboxUrl}
+
+${expiresAt ? `This approval request expires on ${expiresAt.toLocaleString()}.` : ""}
+
+—
+Nexus Workflow Automation`;
+
+      try {
+        await this.email.send({
+          from: process.env.EMAIL_FROM ?? "approvals@nexus-workflows.com",
+          to: assignedTo,
+          subject: `[Action Required] ${config.title}`,
+          body: emailBody,
+          isHtml: false,
+        });
+      } catch (emailErr) {
+        // Non-fatal: log but don't fail the workflow step
+        console.error("Failed to send approval notification email:", emailErr);
+      }
+    }
+
     return { status: "waiting_approval" };
   }
 
