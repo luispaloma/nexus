@@ -433,45 +433,76 @@ export interface ApprovalResponseRequest {
 // ----------------------------------------------------------------------------
 
 export interface PlanLimits {
-  workflowsPerMonth: number;
-  executionsPerMonth: number;
-  aiTokensPerMonth: number;
-  teamMembers: number;
+  workflowsPerMonth: number;      // -1 = unlimited
+  executionsPerMonth: number;     // -1 = unlimited (workflow runs)
+  aiStepsIncluded: number;        // AI workflow steps included; -1 = unlimited
+  teamMembers: number;            // -1 = unlimited
+  templates: number;              // max templates; -1 = all templates
   customIntegrations: boolean;
   prioritySupport: boolean;
+  sso: boolean;
+  soc2Pack: boolean;
+  humanInLoop: boolean;
+  dedicatedOnboarding: boolean;
+  overagePriceCentsPerStep: number | null; // EUR cents per AI step above limit (null = no overage)
 }
 
 export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimits> = {
   free: {
     workflowsPerMonth: 3,
     executionsPerMonth: 50,
-    aiTokensPerMonth: 100_000,
+    aiStepsIncluded: 100,
     teamMembers: 1,
+    templates: 1,
     customIntegrations: false,
     prioritySupport: false,
+    sso: false,
+    soc2Pack: false,
+    humanInLoop: false,
+    dedicatedOnboarding: false,
+    overagePriceCentsPerStep: null,
   },
   starter: {
-    workflowsPerMonth: 20,
-    executionsPerMonth: 500,
-    aiTokensPerMonth: 1_000_000,
+    workflowsPerMonth: -1,        // unlimited workflows
+    executionsPerMonth: 1000,     // 1,000 workflow runs/month
+    aiStepsIncluded: 1000,        // included AI steps
     teamMembers: 5,
-    customIntegrations: false,
+    templates: 3,                 // 3 templates
+    customIntegrations: false,    // Google Workspace + email only
     prioritySupport: false,
+    sso: false,
+    soc2Pack: false,
+    humanInLoop: false,
+    dedicatedOnboarding: false,
+    overagePriceCentsPerStep: 4,  // €0.04 per AI step above limit
   },
   growth: {
-    workflowsPerMonth: -1, // unlimited
-    executionsPerMonth: 5000,
-    aiTokensPerMonth: 10_000_000,
+    // Displayed as "Professional" (€999/mo)
+    workflowsPerMonth: -1,
+    executionsPerMonth: -1,       // unlimited runs
+    aiStepsIncluded: -1,          // unlimited AI steps
     teamMembers: 25,
-    customIntegrations: true,
+    templates: -1,                // all templates
+    customIntegrations: true,     // HubSpot + full integrations
     prioritySupport: true,
+    sso: false,
+    soc2Pack: false,
+    humanInLoop: false,
+    dedicatedOnboarding: false,
+    overagePriceCentsPerStep: null,
   },
   enterprise: {
     workflowsPerMonth: -1,
     executionsPerMonth: -1,
-    aiTokensPerMonth: -1,
+    aiStepsIncluded: -1,
     teamMembers: -1,
+    templates: -1,
     customIntegrations: true,
     prioritySupport: true,
+    sso: true,
+    soc2Pack: true,
+    humanInLoop: true,
+    dedicatedOnboarding: true,
+    overagePriceCentsPerStep: null,
   },
 };

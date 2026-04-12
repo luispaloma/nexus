@@ -19,13 +19,14 @@ function getStripe(): Stripe {
   });
 }
 
-// Price IDs (configure via env)
+// Price IDs (configure via env after running scripts/stripe-setup.ts)
 const PRICE_IDS: Record<string, string> = {
-  starter_monthly: process.env.STRIPE_PRICE_STARTER_MONTHLY ?? "",
-  starter_annual: process.env.STRIPE_PRICE_STARTER_ANNUAL ?? "",
-  growth_monthly: process.env.STRIPE_PRICE_GROWTH_MONTHLY ?? "",
-  growth_annual: process.env.STRIPE_PRICE_GROWTH_ANNUAL ?? "",
-  enterprise_monthly: process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY ?? "",
+  starter_monthly:       process.env.STRIPE_PRICE_STARTER_MONTHLY ?? "",
+  starter_annual:        process.env.STRIPE_PRICE_STARTER_ANNUAL ?? "",
+  starter_metered:       process.env.STRIPE_PRICE_STARTER_METERED ?? "",
+  professional_monthly:  process.env.STRIPE_PRICE_PROFESSIONAL_MONTHLY ?? "",
+  professional_annual:   process.env.STRIPE_PRICE_PROFESSIONAL_ANNUAL ?? "",
+  enterprise_monthly:    process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY ?? "",
 };
 
 // ----------------------------------------------------------------------------
@@ -39,6 +40,12 @@ const CreateCheckoutSchema = z.object({
   quantity: z.number().int().min(1).max(1000).optional().default(1),
 });
 
+const RecordUsageSchema = z.object({
+  quantity: z.number().int().min(1),
+  timestamp: z.number().optional(),
+  action: z.enum(["increment", "set"]).optional().default("increment"),
+});
+
 // ----------------------------------------------------------------------------
 // GET /api/billing/plans - List available plans
 // ----------------------------------------------------------------------------
@@ -50,88 +57,102 @@ billingRouter.get("/plans", (_req: Request, res: Response) => {
         id: "free",
         name: "Free",
         price: 0,
+        currency: "eur",
         interval: null,
         features: [
           "3 workflows",
           "50 executions/month",
-          "100K AI tokens/month",
           "1 team member",
           "Community support",
         ],
         limits: {
           workflowsPerMonth: 3,
           executionsPerMonth: 50,
-          aiTokensPerMonth: 100_000,
+          aiStepsIncluded: 100,
           teamMembers: 1,
+          templates: 1,
         },
       },
       {
         id: "starter",
         name: "Starter",
-        price: 49,
+        price: 299,
+        currency: "eur",
         interval: "month",
         priceId: PRICE_IDS.starter_monthly,
         annualPriceId: PRICE_IDS.starter_annual,
-        annualPrice: 39,
+        annualPrice: 249,
         features: [
-          "20 workflows",
-          "500 executions/month",
-          "1M AI tokens/month",
+          "1,000 workflow runs/month",
+          "3 templates",
           "5 team members",
+          "Google Workspace + email integrations",
           "Email support",
           "Audit logs",
+          "€0.04 per AI step above limit",
         ],
         limits: {
-          workflowsPerMonth: 20,
-          executionsPerMonth: 500,
-          aiTokensPerMonth: 1_000_000,
+          workflowsPerMonth: -1,
+          executionsPerMonth: 1000,
+          aiStepsIncluded: 1000,
           teamMembers: 5,
+          templates: 3,
+        },
+        overage: {
+          pricePerStep: 0.04,
+          currency: "eur",
         },
       },
       {
         id: "growth",
-        name: "Growth",
-        price: 149,
+        name: "Professional",
+        price: 999,
+        currency: "eur",
         interval: "month",
-        priceId: PRICE_IDS.growth_monthly,
-        annualPriceId: PRICE_IDS.growth_annual,
-        annualPrice: 119,
+        priceId: PRICE_IDS.professional_monthly,
+        annualPriceId: PRICE_IDS.professional_annual,
+        annualPrice: 849,
         features: [
-          "Unlimited workflows",
-          "5,000 executions/month",
-          "10M AI tokens/month",
+          "Unlimited workflow runs",
+          "All templates",
           "25 team members",
+          "HubSpot + full integrations",
           "Priority support",
-          "Custom integrations",
+          "Advanced analytics",
           "SLA guarantee",
         ],
         limits: {
           workflowsPerMonth: -1,
-          executionsPerMonth: 5000,
-          aiTokensPerMonth: 10_000_000,
+          executionsPerMonth: -1,
+          aiStepsIncluded: -1,
           teamMembers: 25,
+          templates: -1,
         },
         popular: true,
       },
       {
         id: "enterprise",
         name: "Enterprise",
-        price: null,
-        interval: null,
+        price: 3500,
+        currency: "eur",
+        interval: "month",
+        priceId: PRICE_IDS.enterprise_monthly,
         features: [
           "Unlimited everything",
           "Unlimited team members",
-          "Custom AI models",
-          "Dedicated support",
-          "Custom SLA",
+          "Custom SLAs",
+          "SOC 2 compliance pack",
+          "Human-in-loop workflows",
           "SSO/SAML",
-          "On-premise option",
+          "Dedicated onboarding",
+          "Custom AI models",
         ],
         limits: {
           workflowsPerMonth: -1,
           executionsPerMonth: -1,
-          aiTokensPerMonth: -1,
+          aiStepsIncluded: -1,
           teamMembers: -1,
+          templates: -1,
         },
       },
     ],
@@ -154,6 +175,7 @@ billingRouter.get(
           subscriptionStatus: true,
           stripeCustomerId: true,
           stripePriceId: true,
+          stripeSubscriptionItemId: true,
           seats: true,
         },
       });
@@ -251,11 +273,22 @@ billingRouter.post(
         });
       }
 
+      // Build line items — for Starter, include the metered overage price
+      const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+        { price: priceId, quantity },
+      ];
+
+      const isStarterMonthly = priceId === PRICE_IDS.starter_monthly;
+      const isStarterAnnual = priceId === PRICE_IDS.starter_annual;
+      if ((isStarterMonthly || isStarterAnnual) && PRICE_IDS.starter_metered) {
+        lineItems.push({ price: PRICE_IDS.starter_metered });
+      }
+
       const session = await stripe.checkout.sessions.create({
         customer: customerId,
         mode: "subscription",
         payment_method_types: ["card"],
-        line_items: [{ price: priceId, quantity }],
+        line_items: lineItems,
         success_url: successUrl,
         cancel_url: cancelUrl,
         subscription_data: {
@@ -263,6 +296,7 @@ billingRouter.post(
         },
         allow_promotion_codes: true,
         billing_address_collection: "auto",
+        currency: "eur",
         metadata: { nexusOrgId: orgId },
       });
 
@@ -305,6 +339,65 @@ billingRouter.post(
       });
 
       res.json({ data: { url: session.url } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ----------------------------------------------------------------------------
+// POST /api/billing/usage - Record metered AI step usage (Stripe usage records)
+// Called by the workflow executor when an AI step completes on Starter plan.
+// ----------------------------------------------------------------------------
+
+billingRouter.post(
+  "/usage",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = RecordUsageSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({
+          error: "ValidationError",
+          message: "Invalid usage request",
+          statusCode: 400,
+          details: parsed.error.flatten(),
+        });
+        return;
+      }
+
+      const org = await prisma.organization.findUnique({
+        where: { id: req.nexusOrgId! },
+        select: {
+          plan: true,
+          stripeSubscriptionItemId: true,
+        },
+      });
+
+      if (!org) {
+        res.status(404).json({ error: "NotFound", message: "Organization not found", statusCode: 404 });
+        return;
+      }
+
+      // Only Starter plan has metered overage pricing
+      if (org.plan !== "starter" || !org.stripeSubscriptionItemId) {
+        res.json({ data: { recorded: false, reason: "Plan does not use metered billing" } });
+        return;
+      }
+
+      const stripe = getStripe();
+      const { quantity, timestamp, action } = parsed.data;
+
+      const usageRecord = await stripe.subscriptionItems.createUsageRecord(
+        org.stripeSubscriptionItemId,
+        {
+          quantity,
+          timestamp: timestamp ?? Math.floor(Date.now() / 1000),
+          action,
+        }
+      );
+
+      res.json({ data: { recorded: true, usageRecordId: usageRecord.id } });
     } catch (err) {
       next(err);
     }
@@ -408,6 +501,7 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
           subscriptionStatus: "canceled",
           plan: "free",
           stripePriceId: null,
+          stripeSubscriptionItemId: null,
         },
       });
       break;
@@ -439,8 +533,21 @@ async function updateOrgSubscription(
   orgId: string,
   subscription: Stripe.Subscription
 ): Promise<void> {
-  const priceId = subscription.items.data[0]?.price.id;
-  const plan = getPlanFromPriceId(priceId ?? "");
+  // Find the base (non-metered) subscription item to get the main price
+  const items = subscription.items.data;
+  const baseItem = items.find((item) => {
+    const recurring = item.price.recurring;
+    return recurring?.usage_type !== "metered";
+  }) ?? items[0];
+
+  // Find the metered item for Starter overage
+  const meteredItem = items.find((item) => {
+    const recurring = item.price.recurring;
+    return recurring?.usage_type === "metered";
+  });
+
+  const priceId = baseItem?.price.id ?? "";
+  const plan = getPlanFromPriceId(priceId);
   const status = mapStripeStatus(subscription.status);
 
   await prisma.organization.update({
@@ -449,6 +556,7 @@ async function updateOrgSubscription(
       subscriptionStatus: status,
       plan,
       stripePriceId: priceId,
+      stripeSubscriptionItemId: meteredItem?.id ?? null,
     },
   });
 
@@ -463,6 +571,7 @@ async function updateOrgSubscription(
         plan,
         status,
         priceId,
+        meteredItemId: meteredItem?.id ?? null,
       },
     },
   });
@@ -470,11 +579,11 @@ async function updateOrgSubscription(
 
 function getPlanFromPriceId(priceId: string): "free" | "starter" | "growth" | "enterprise" {
   const starter = [PRICE_IDS.starter_monthly, PRICE_IDS.starter_annual];
-  const growth = [PRICE_IDS.growth_monthly, PRICE_IDS.growth_annual];
+  const professional = [PRICE_IDS.professional_monthly, PRICE_IDS.professional_annual];
   const enterprise = [PRICE_IDS.enterprise_monthly];
 
   if (starter.includes(priceId)) return "starter";
-  if (growth.includes(priceId)) return "growth";
+  if (professional.includes(priceId)) return "growth"; // internal name is "growth"
   if (enterprise.includes(priceId)) return "enterprise";
   return "free";
 }

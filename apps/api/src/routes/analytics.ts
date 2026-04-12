@@ -16,6 +16,17 @@ analyticsRouter.get("/overview", async (req: Request, res: Response, next: NextF
     const orgId = req.nexusOrgId!;
     const now = new Date();
 
+    // Fetch subscription info in parallel with execution stats
+    const orgSubscription = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: {
+        plan: true,
+        subscriptionStatus: true,
+        stripePriceId: true,
+        seats: true,
+      },
+    });
+
     // Rolling 30-day window
     const thirtyDaysAgo = new Date(now);
     thirtyDaysAgo.setDate(now.getDate() - 30);
@@ -121,9 +132,23 @@ analyticsRouter.get("/overview", async (req: Request, res: Response, next: NextF
     // Estimated time saved: assume each completed execution saves 25 minutes of manual work
     const estimatedMinutesSaved = completedExecutions * 25;
 
+    // Map plan internal name to display name
+    const planDisplayNames: Record<string, string> = {
+      free: "Free",
+      starter: "Starter",
+      growth: "Professional",
+      enterprise: "Enterprise",
+    };
+
     res.json({
       data: {
         period: "last_30_days",
+        subscription: {
+          plan: orgSubscription?.plan ?? "free",
+          planDisplayName: planDisplayNames[orgSubscription?.plan ?? "free"] ?? "Free",
+          status: orgSubscription?.subscriptionStatus ?? "trialing",
+          seats: orgSubscription?.seats ?? 1,
+        },
         executions: {
           total: totalExecutions,
           completed: completedExecutions,

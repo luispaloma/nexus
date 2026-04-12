@@ -67,16 +67,17 @@ enum ApprovalStatus {
 // ----------------------------------------------------------------------------
 
 model Organization {
-  id                 String             @id @default(cuid())
-  name               String
-  clerkOrgId         String             @unique
-  stripeCustomerId   String?            @unique
-  stripePriceId      String?
-  subscriptionStatus SubscriptionStatus @default(trialing)
-  plan               SubscriptionPlan   @default(free)
-  seats              Int                @default(1)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  id                       String             @id @default(cuid())
+  name                     String
+  clerkOrgId               String             @unique
+  stripeCustomerId         String?            @unique
+  stripePriceId            String?
+  stripeSubscriptionItemId String?            // metered overage item ID (Starter plan)
+  subscriptionStatus       SubscriptionStatus @default(trialing)
+  plan                     SubscriptionPlan   @default(free)
+  seats                    Int                @default(1)
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
 
   users               User[]
   workflowDefinitions WorkflowDefinition[]
