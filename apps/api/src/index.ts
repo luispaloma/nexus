@@ -13,6 +13,7 @@ import { analyticsRouter } from "./routes/analytics";
 import { integrationsRouter } from "./routes/integrations";
 import { shareRouter } from "./routes/share";
 import { onboardingRouter } from "./routes/onboarding";
+import { sdrRouter } from "./routes/sdr";
 
 // ----------------------------------------------------------------------------
 // App initialization
@@ -106,6 +107,7 @@ app.use("/api/analytics", analyticsRouter);
 app.use("/api/integrations", integrationsRouter);
 app.use("/api", shareRouter); // share routes: /api/workflows/:id/share and /api/share/:token
 app.use("/api/onboarding", onboardingRouter);
+app.use("/api/sdr", sdrRouter);
 
 // ----------------------------------------------------------------------------
 // 404 handler
