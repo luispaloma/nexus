@@ -14,6 +14,7 @@ import { integrationsRouter } from "./routes/integrations";
 import { shareRouter } from "./routes/share";
 import { onboardingRouter } from "./routes/onboarding";
 import { sdrRouter } from "./routes/sdr";
+import { pipelineRouter } from "./routes/pipeline";
 
 // ----------------------------------------------------------------------------
 // App initialization
@@ -108,6 +109,7 @@ app.use("/api/integrations", integrationsRouter);
 app.use("/api", shareRouter); // share routes: /api/workflows/:id/share and /api/share/:token
 app.use("/api/onboarding", onboardingRouter);
 app.use("/api/sdr", sdrRouter);
+app.use("/api/pipeline", pipelineRouter);
 
 // ----------------------------------------------------------------------------
 // 404 handler

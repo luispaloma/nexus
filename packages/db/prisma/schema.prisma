@@ -62,6 +62,15 @@ enum ApprovalStatus {
   expired
 }
 
+enum ReplyStatus {
+  no_reply
+  replied
+  demo_booked
+  in_evaluation
+  closed_won
+  closed_lost
+}
+
 // ----------------------------------------------------------------------------
 // Organization
 // ----------------------------------------------------------------------------
@@ -249,4 +258,29 @@ model AuditLog {
   @@index([executionId])
   @@index([action])
   @@index([createdAt])
+}
+
+// ----------------------------------------------------------------------------
+// SDR Pipeline Tracker (interim, pre-HubSpot)
+// ----------------------------------------------------------------------------
+
+model PipelineContact {
+  id             String      @id @default(cuid())
+  contactName    String
+  contactEmail   String
+  contactTitle   String
+  companyName    String
+  vertical       String      // FinTech | Professional Services | Logistics
+  companySize    String
+  outreachDate   DateTime    @default(now())
+  replyStatus    ReplyStatus @default(no_reply)
+  nextAction     String?
+  nextActionDue  DateTime?
+  notes          String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([replyStatus])
+  @@index([vertical])
+  @@index([outreachDate])
 }

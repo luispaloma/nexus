@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import Stripe from "stripe";
 import { z } from "zod";
 import { prisma } from "@nexus/db";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requireRole } from "../middleware/auth";
 import { sendTrialReminderEmail } from "../lib/trial-email";
 
 export const billingRouter = Router();
@@ -541,6 +541,181 @@ billingRouter.post(
       res.json({ received: true });
     } catch (err) {
       console.error(`Error handling Stripe event ${event.type}:`, err);
+      next(err);
+    }
+  }
+);
+
+// ----------------------------------------------------------------------------
+// GET /api/billing/metrics - SaaS revenue metrics (owner/admin only)
+// MRR, ARR, churn, trial conversion, subscriber breakdown, 100M EUR goal progress
+// ----------------------------------------------------------------------------
+
+const PLAN_MONTHLY_EUR: Record<string, number> = {
+  free: 0,
+  starter: 299,
+  growth: 999,
+  enterprise: 3500,
+};
+
+billingRouter.get(
+  "/metrics",
+  requireAuth,
+  requireRole("owner", "admin"),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 3600 * 1000);
+
+      // Current subscriber state across all orgs
+      const orgs = await prisma.organization.findMany({
+        select: {
+          id: true,
+          plan: true,
+          subscriptionStatus: true,
+          trialStartedAt: true,
+        },
+      });
+
+      // Audit logs for billing events (all time — needed for pre-window baseline)
+      const allBillingLogs = await prisma.auditLog.findMany({
+        where: { action: "billing.subscription_updated" },
+        orderBy: { createdAt: "asc" },
+        select: { orgId: true, details: true, createdAt: true },
+      });
+
+      // Split logs into pre-window and in-window buckets
+      const preWindowLogs = allBillingLogs.filter((l) => l.createdAt < thirtyDaysAgo);
+      const windowLogs = allBillingLogs.filter((l) => l.createdAt >= thirtyDaysAgo);
+
+      // Most recent plan per org before the 30-day window
+      const preWindowPlanByOrg = new Map<string, string>();
+      for (const log of preWindowLogs) {
+        const d = log.details as Record<string, string>;
+        if (d.plan) preWindowPlanByOrg.set(log.orgId, d.plan);
+      }
+
+      // Group in-window logs by org (already sorted asc)
+      const windowLogsByOrg = new Map<string, Array<{ plan: string; status: string }>>();
+      for (const log of windowLogs) {
+        const d = log.details as Record<string, string>;
+        if (!d.plan) continue;
+        if (!windowLogsByOrg.has(log.orgId)) windowLogsByOrg.set(log.orgId, []);
+        windowLogsByOrg.get(log.orgId)!.push({ plan: d.plan, status: d.status });
+      }
+
+      // MRR movement: new / expansion / churned
+      let newMrrEur = 0;
+      let expansionMrrEur = 0;
+      let churnedMrrEur = 0;
+      let churnedOrgCount = 0;
+
+      for (const [orgId, changes] of windowLogsByOrg) {
+        const prePlan = preWindowPlanByOrg.get(orgId) ?? "free";
+        const lastChange = changes[changes.length - 1];
+        const toPlan = lastChange.plan;
+        const toStatus = lastChange.status;
+
+        const fromPrice = PLAN_MONTHLY_EUR[prePlan] ?? 0;
+        const toPrice = toStatus === "canceled" ? 0 : (PLAN_MONTHLY_EUR[toPlan] ?? 0);
+        const delta = toPrice - fromPrice;
+
+        if (toStatus === "canceled") {
+          churnedOrgCount += 1;
+          if (fromPrice > 0) churnedMrrEur += fromPrice;
+        } else if (delta > 0) {
+          if (fromPrice === 0) {
+            newMrrEur += delta;
+          } else {
+            expansionMrrEur += delta;
+          }
+        }
+      }
+
+      // Current MRR from all active paid subscribers
+      const activeOrgs = orgs.filter((o) => o.subscriptionStatus === "active");
+      const currentMrrEur = activeOrgs.reduce(
+        (sum, o) => sum + (PLAN_MONTHLY_EUR[o.plan] ?? 0),
+        0
+      );
+      const currentArrEur = currentMrrEur * 12;
+
+      // Subscriber counts
+      const byPlan = { free: 0, starter: 0, growth: 0, enterprise: 0 };
+      const byStatus = { active: 0, trialing: 0, past_due: 0, canceled: 0, incomplete: 0 };
+      for (const o of orgs) {
+        byPlan[o.plan as keyof typeof byPlan] = (byPlan[o.plan as keyof typeof byPlan] ?? 0) + 1;
+        byStatus[o.subscriptionStatus as keyof typeof byStatus] =
+          (byStatus[o.subscriptionStatus as keyof typeof byStatus] ?? 0) + 1;
+      }
+
+      // Churn rate (last 30 days)
+      const activeAtStartOfWindow = activeOrgs.length + churnedOrgCount;
+      const churnRate30dPct =
+        activeAtStartOfWindow > 0
+          ? Math.round((churnedOrgCount / activeAtStartOfWindow) * 10000) / 100
+          : 0;
+
+      // Trial-to-paid conversion
+      const orgsWithTrial = orgs.filter((o) => o.trialStartedAt != null);
+      const convertedFromTrial = orgsWithTrial.filter(
+        (o) => o.plan !== "free" && o.subscriptionStatus === "active"
+      );
+      const trialConversionRatePct =
+        orgsWithTrial.length > 0
+          ? Math.round((convertedFromTrial.length / orgsWithTrial.length) * 10000) / 100
+          : 0;
+
+      // Goal progress toward 100M EUR ARR
+      const TARGET_ARR_EUR = 100_000_000;
+      const goalProgressPct =
+        Math.round((currentArrEur / TARGET_ARR_EUR) * 10000) / 100;
+
+      // MRR by plan
+      const mrrByPlan = {
+        starter: activeOrgs.filter((o) => o.plan === "starter").length * PLAN_MONTHLY_EUR.starter,
+        growth: activeOrgs.filter((o) => o.plan === "growth").length * PLAN_MONTHLY_EUR.growth,
+        enterprise:
+          activeOrgs.filter((o) => o.plan === "enterprise").length * PLAN_MONTHLY_EUR.enterprise,
+      };
+
+      res.json({
+        data: {
+          mrr: {
+            currentEur: currentMrrEur,
+            arrEur: currentArrEur,
+            byPlan: mrrByPlan,
+            movement30d: {
+              newEur: newMrrEur,
+              expansionEur: expansionMrrEur,
+              churnedEur: churnedMrrEur,
+              netEur: newMrrEur + expansionMrrEur - churnedMrrEur,
+            },
+          },
+          subscribers: {
+            total: orgs.length,
+            active: byStatus.active,
+            trialing: byStatus.trialing,
+            pastDue: byStatus.past_due,
+            byPlan,
+          },
+          churn: {
+            rate30dPct: churnRate30dPct,
+            churned30d: churnedOrgCount,
+          },
+          trialConversion: {
+            ratePct: trialConversionRatePct,
+            converted: convertedFromTrial.length,
+            totalWithTrial: orgsWithTrial.length,
+          },
+          goal: {
+            targetArrEur: TARGET_ARR_EUR,
+            currentArrEur,
+            progressPct: goalProgressPct,
+          },
+        },
+      });
+    } catch (err) {
       next(err);
     }
   }
