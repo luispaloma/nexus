@@ -39,6 +39,7 @@ export { budgetRequestApprovalTemplate } from "./templates/budget-request-approv
 export { monthEndCloseTemplate } from "./templates/month-end-close";
 export { arFollowupTemplate } from "./templates/ar-followup";
 export { outboundSdrTemplate } from "./templates/outbound-sdr";
+export { nurtureSequenceTemplate } from "./templates/nurture-sequence";
 
 // Template registry
 export const WORKFLOW_TEMPLATES = {
@@ -85,6 +86,12 @@ export const WORKFLOW_TEMPLATES = {
   "outbound-sdr": {
     name: "Outbound AI SDR Agent",
     description: "AI ICP scoring, personalised cold email drafting, CRM logging, and SDR qualification review",
+    category: "sales",
+  },
+  "nurture-sequence": {
+    name: "3-Touch Email Nurture Sequence",
+    description:
+      "Vertical-specific nurture follow-up: Day 3 social proof → Day 7 ROI narrative → Day 14 soft close. Automated sends via Resend with optional CRM logging.",
     category: "sales",
   },
 } as const;
