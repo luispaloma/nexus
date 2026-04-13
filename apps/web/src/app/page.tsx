@@ -32,6 +32,12 @@ export default async function HomePage() {
         </div>
         <div className="flex items-center gap-4">
           <Link
+            href="/customers"
+            className="text-sm text-slate-300 hover:text-white transition-colors"
+          >
+            Customers
+          </Link>
+          <Link
             href="/sign-in"
             className="text-sm text-slate-300 hover:text-white transition-colors"
           >
