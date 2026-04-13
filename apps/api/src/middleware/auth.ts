@@ -127,11 +127,32 @@ export async function requireActiveSubscription(
   try {
     const org = await prisma.organization.findUnique({
       where: { id: req.nexusOrgId },
-      select: { subscriptionStatus: true, plan: true },
+      select: { subscriptionStatus: true, plan: true, trialEndsAt: true },
     });
 
     if (!org) {
       res.status(401).json({ error: "Unauthorized", message: "Organization not found", statusCode: 401 });
+      return;
+    }
+
+    // Check if the free trial has expired
+    if (
+      org.subscriptionStatus === "trialing" &&
+      org.plan === "free" &&
+      org.trialEndsAt !== null &&
+      org.trialEndsAt < new Date()
+    ) {
+      // Mark as canceled so subsequent requests skip this check
+      await prisma.organization.update({
+        where: { id: req.nexusOrgId! },
+        data: { subscriptionStatus: "canceled" },
+      });
+      res.status(402).json({
+        error: "TrialExpired",
+        message: "Your 14-day trial has ended. Upgrade to continue using Nexus.",
+        statusCode: 402,
+        details: { subscriptionStatus: "canceled", trialExpired: true },
+      });
       return;
     }
 

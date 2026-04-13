@@ -78,6 +78,9 @@ onboardingRouter.post(
       }
 
       // Create org + user in a transaction
+      const trialStartedAt = new Date();
+      const trialEndsAt = new Date(trialStartedAt.getTime() + 14 * 24 * 60 * 60 * 1000);
+
       const { organization, newUser } = await prisma.$transaction(async (tx) => {
         const organization = await tx.organization.create({
           data: {
@@ -88,6 +91,8 @@ onboardingRouter.post(
             subscriptionStatus: "trialing",
             plan: "free",
             seats: 1,
+            trialStartedAt,
+            trialEndsAt,
           },
         });
 
@@ -122,16 +127,54 @@ onboardingRouter.post(
         return { organization, newUser };
       });
 
-      // If user chose a starter template, create it as their first workflow
-      if (firstWorkflowTemplate) {
+      // Always provision the two sandbox demo workflows for every new trial org
+      try {
+        const {
+          WORKFLOW_TEMPLATES,
+          invoiceApprovalTemplate,
+          contractReviewTemplate,
+        } = await import("@nexus/ai");
+
+        const demoWorkflows: Array<{ key: string; template: unknown }> = [
+          { key: "invoice-approval", template: invoiceApprovalTemplate },
+          { key: "contract-review", template: contractReviewTemplate },
+        ];
+
+        for (const { key, template } of demoWorkflows) {
+          const meta = WORKFLOW_TEMPLATES[key as keyof typeof WORKFLOW_TEMPLATES];
+          if (meta && template) {
+            await prisma.workflowDefinition.create({
+              data: {
+                orgId: organization.id,
+                name: meta.name,
+                description: `${meta.description} (sandbox demo)`,
+                definition: template as import("@prisma/client").Prisma.InputJsonValue,
+                isTemplate: false,
+                isActive: true,
+                createdBy: newUser.id,
+              },
+            });
+          }
+        }
+      } catch {
+        // Non-fatal: don't fail onboarding if demo provisioning fails
+      }
+
+      // If user also chose a specific starter template different from the demo ones, add it too
+      if (
+        firstWorkflowTemplate &&
+        firstWorkflowTemplate !== "invoice-approval" &&
+        firstWorkflowTemplate !== "contract-review"
+      ) {
         try {
           const { WORKFLOW_TEMPLATES } = await import("@nexus/ai");
           if (firstWorkflowTemplate in WORKFLOW_TEMPLATES) {
             const templateModule = await import("@nexus/ai");
-            const templateKey = firstWorkflowTemplate
-              .split("-")
-              .map((p, i) => (i === 0 ? p : p[0].toUpperCase() + p.slice(1)))
-              .join("") + "Template";
+            const templateKey =
+              firstWorkflowTemplate
+                .split("-")
+                .map((p, i) => (i === 0 ? p : p[0].toUpperCase() + p.slice(1)))
+                .join("") + "Template";
 
             const template = (templateModule as Record<string, unknown>)[templateKey];
             if (template) {
@@ -141,7 +184,7 @@ onboardingRouter.post(
                   orgId: organization.id,
                   name: meta.name,
                   description: `${meta.description} (from template)`,
-                  definition: template as unknown as import("@prisma/client").Prisma.InputJsonValue,
+                  definition: template as import("@prisma/client").Prisma.InputJsonValue,
                   isTemplate: false,
                   isActive: true,
                   createdBy: newUser.id,
@@ -150,7 +193,7 @@ onboardingRouter.post(
             }
           }
         } catch {
-          // Non-fatal: don't fail onboarding if template setup fails
+          // Non-fatal
         }
       }
 

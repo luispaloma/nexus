@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { z } from "zod";
 import { prisma } from "@nexus/db";
 import { requireAuth } from "../middleware/auth";
+import { sendTrialReminderEmail } from "../lib/trial-email";
 
 export const billingRouter = Router();
 
@@ -213,6 +214,106 @@ billingRouter.get(
         data: {
           ...org,
           stripeSubscription,
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ----------------------------------------------------------------------------
+// GET /api/billing/trial - Get trial status and fire lazy reminder emails
+// ----------------------------------------------------------------------------
+
+billingRouter.get(
+  "/trial",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const org = await prisma.organization.findUnique({
+        where: { id: req.nexusOrgId! },
+        select: {
+          plan: true,
+          subscriptionStatus: true,
+          trialStartedAt: true,
+          trialEndsAt: true,
+          trialDay10ReminderSentAt: true,
+          trialDay13ReminderSentAt: true,
+        },
+      });
+
+      if (!org) {
+        res.status(404).json({ error: "NotFound", message: "Organization not found", statusCode: 404 });
+        return;
+      }
+
+      const now = new Date();
+      const isTrial = org.subscriptionStatus === "trialing" && org.plan === "free";
+      const trialEndsAt = org.trialEndsAt;
+
+      let daysRemaining: number | null = null;
+      let isExpired = false;
+
+      if (trialEndsAt) {
+        const msRemaining = trialEndsAt.getTime() - now.getTime();
+        daysRemaining = Math.ceil(msRemaining / (1000 * 60 * 60 * 24));
+        isExpired = msRemaining <= 0;
+      }
+
+      // Lazily fire reminder emails when user hits the app
+      if (isTrial && trialEndsAt && org.trialStartedAt && !isExpired) {
+        const trialStartedAt = org.trialStartedAt;
+        const daysSinceStart = Math.floor(
+          (now.getTime() - trialStartedAt.getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        const upgradeUrl = `${process.env.NEXTJS_URL ?? "http://localhost:3000"}/billing`;
+        const user = await prisma.user.findFirst({
+          where: { organizationId: req.nexusOrgId! },
+          select: { email: true },
+          orderBy: { createdAt: "asc" },
+        });
+        const orgName = await prisma.organization
+          .findUnique({ where: { id: req.nexusOrgId! }, select: { name: true } })
+          .then((o) => o?.name ?? "your organization");
+
+        if (daysSinceStart >= 10 && !org.trialDay10ReminderSentAt && user) {
+          await prisma.organization.update({
+            where: { id: req.nexusOrgId! },
+            data: { trialDay10ReminderSentAt: now },
+          });
+          sendTrialReminderEmail({
+            to: user.email,
+            orgName,
+            daysRemaining: Math.max(0, daysRemaining ?? 4),
+            upgradeUrl,
+          }).catch((err) => console.error("trial day-10 email failed:", err));
+        }
+
+        if (daysSinceStart >= 13 && !org.trialDay13ReminderSentAt && user) {
+          await prisma.organization.update({
+            where: { id: req.nexusOrgId! },
+            data: { trialDay13ReminderSentAt: now },
+          });
+          sendTrialReminderEmail({
+            to: user.email,
+            orgName,
+            daysRemaining: Math.max(0, daysRemaining ?? 1),
+            upgradeUrl,
+          }).catch((err) => console.error("trial day-13 email failed:", err));
+        }
+      }
+
+      res.json({
+        data: {
+          isTrial,
+          isExpired,
+          daysRemaining,
+          trialStartedAt: org.trialStartedAt,
+          trialEndsAt: org.trialEndsAt,
+          plan: org.plan,
+          subscriptionStatus: org.subscriptionStatus,
         },
       });
     } catch (err) {

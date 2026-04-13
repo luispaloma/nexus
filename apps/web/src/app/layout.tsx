@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import TrialBanner from "@/components/TrialBanner";
+import TrialExpiredGate from "@/components/TrialExpiredGate";
 import "./globals.css";
 
 // ----------------------------------------------------------------------------
@@ -73,7 +75,10 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning className={inter.variable}>
         <body className="min-h-screen bg-background font-sans antialiased">
-          {children}
+          <TrialBanner />
+          <TrialExpiredGate>
+            {children}
+          </TrialExpiredGate>
         </body>
       </html>
     </ClerkProvider>
